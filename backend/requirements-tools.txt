@@ -1,0 +1,4 @@
+# Optional worker-only engines; versions checked against official PyPI releases on 2026-10-19.
+playwright==1.64.0
+schemathesis==4.32.0
+semgrep==1.181.0

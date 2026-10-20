@@ -1,0 +1,11 @@
+{
+  "module": "<phase-name>",
+  "phase": 0,
+  "contract_version": "1.0.0",
+  "owned_paths": [],
+  "depends_on": [],
+  "env_vars": [],
+  "test_command": "",
+  "endpoints_implemented": [],
+  "notes": ""
+}

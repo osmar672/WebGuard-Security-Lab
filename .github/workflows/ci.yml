@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm audit --audit-level=high
+        working-directory: frontend
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            security/requirements.txt
+      - run: python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt -r security/requirements.txt
+      - run: python -m compileall -q backend/app backend/alembic security/webguard_scope
+      - run: ruff check backend/app backend/tests security/webguard_scope security/tests
+      - run: python -m pytest -q
+        working-directory: backend
+        env:
+          PYTHONPATH: .
+      - run: python -m pytest -q
+        working-directory: security
+        env:
+          PYTHONPATH: .
+      - run: pip-audit -r backend/requirements.txt -r backend/requirements-dev.txt -r security/requirements.txt
+
+  container-build:
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: false
+          tags: webguard-api:ci
+      - name: Build frontend and validate Caddy image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: false
+          tags: webguard-web:ci

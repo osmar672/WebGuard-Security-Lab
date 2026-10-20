@@ -1,0 +1,178 @@
+name: webguard-security-lab
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.production}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Keep the image's standard startup capabilities so the entrypoint can
+    # initialize/chown a fresh named volume, then run PostgreSQL as its own user.
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    # Pass only the variables the API requires. Do not inject the complete
+    # production env file (it also contains DB bootstrap and backup-recipient data).
+    environment:
+      WEBGUARD_ENV: production
+      WEBGUARD_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      WEBGUARD_SECRET_KEY: ${WEBGUARD_SECRET_KEY:?Set WEBGUARD_SECRET_KEY in .env.production}
+      WEBGUARD_LOG_LEVEL: ${WEBGUARD_LOG_LEVEL:-INFO}
+      WEBGUARD_ALLOWED_HOSTS: ${WEBGUARD_ALLOWED_HOSTS:?Set WEBGUARD_ALLOWED_HOSTS in .env.production}
+      WEBGUARD_CORS_ORIGINS: ${WEBGUARD_CORS_ORIGINS:-}
+      WEBGUARD_ACCESS_TOKEN_TTL_MINUTES: ${WEBGUARD_ACCESS_TOKEN_TTL_MINUTES:-15}
+      WEBGUARD_MAX_REQUEST_BODY_BYTES: ${WEBGUARD_MAX_REQUEST_BODY_BYTES:-1048576}
+      WEBGUARD_MAX_PAGE_SIZE: ${WEBGUARD_MAX_PAGE_SIZE:-100}
+      WEBGUARD_DEFAULT_PAGE_SIZE: ${WEBGUARD_DEFAULT_PAGE_SIZE:-20}
+      WEBGUARD_ALLOW_LAB_TARGETS: "false"
+      WEBGUARD_TOOL_EXECUTION_ENABLED: ${WEBGUARD_TOOL_EXECUTION_ENABLED:-false}
+      WEBGUARD_EXTERNAL_TOOLS_ENABLED: ${WEBGUARD_EXTERNAL_TOOLS_ENABLED:-false}
+      WEBGUARD_EGRESS_POLICY_CONFIRMED: ${WEBGUARD_EGRESS_POLICY_CONFIRMED:-false}
+      WEBGUARD_TOOL_JOB_TIMEOUT_SECONDS: ${WEBGUARD_TOOL_JOB_TIMEOUT_SECONDS:-180}
+      WEBGUARD_TOOL_RATE_LIMIT_REQUESTS: ${WEBGUARD_TOOL_RATE_LIMIT_REQUESTS:-5}
+      WEBGUARD_WORKSPACE_SCAN_ROOT: ${WEBGUARD_WORKSPACE_SCAN_ROOT:-}
+      WEBGUARD_NUCLEI_PATH: ${WEBGUARD_NUCLEI_PATH:-nuclei}
+      WEBGUARD_K6_PATH: ${WEBGUARD_K6_PATH:-k6}
+      WEBGUARD_SCHEMATHESIS_PATH: ${WEBGUARD_SCHEMATHESIS_PATH:-schemathesis}
+      WEBGUARD_TRIVY_PATH: ${WEBGUARD_TRIVY_PATH:-trivy}
+      WEBGUARD_SEMGREP_PATH: ${WEBGUARD_SEMGREP_PATH:-semgrep}
+      WEBGUARD_GITLEAKS_PATH: ${WEBGUARD_GITLEAKS_PATH:-gitleaks}
+      WEBGUARD_TESTSSL_PATH: ${WEBGUARD_TESTSSL_PATH:-testssl.sh}
+      WEBGUARD_PLAYWRIGHT_ENABLED: ${WEBGUARD_PLAYWRIGHT_ENABLED:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      data: {}
+      proxy:
+        ipv4_address: 172.30.80.11
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,os,urllib.request; host=os.environ['WEBGUARD_ALLOWED_HOSTS'].split(',')[0].strip(); req=urllib.request.Request('http://127.0.0.1:8000/api/health', headers={'Host':host}); d=json.load(urllib.request.urlopen(req,timeout=3)); assert d.get('database') == 'ok'"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  worker:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: backend/ToolWorker.Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "app.tooling.worker"]
+    shm_size: 512m
+    environment:
+      WEBGUARD_ENV: production
+      WEBGUARD_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      WEBGUARD_SECRET_KEY: ${WEBGUARD_SECRET_KEY:?Set WEBGUARD_SECRET_KEY in .env.production}
+      WEBGUARD_LOG_LEVEL: ${WEBGUARD_LOG_LEVEL:-INFO}
+      WEBGUARD_ALLOWED_HOSTS: ${WEBGUARD_ALLOWED_HOSTS:?Set WEBGUARD_ALLOWED_HOSTS in .env.production}
+      WEBGUARD_CORS_ORIGINS: ${WEBGUARD_CORS_ORIGINS:-}
+      WEBGUARD_ALLOW_LAB_TARGETS: "false"
+      WEBGUARD_TOOL_EXECUTION_ENABLED: ${WEBGUARD_TOOL_EXECUTION_ENABLED:-false}
+      WEBGUARD_EXTERNAL_TOOLS_ENABLED: ${WEBGUARD_EXTERNAL_TOOLS_ENABLED:-false}
+      WEBGUARD_EGRESS_POLICY_CONFIRMED: ${WEBGUARD_EGRESS_POLICY_CONFIRMED:-false}
+      WEBGUARD_TOOL_JOB_TIMEOUT_SECONDS: ${WEBGUARD_TOOL_JOB_TIMEOUT_SECONDS:-180}
+      WEBGUARD_TOOL_RATE_LIMIT_REQUESTS: ${WEBGUARD_TOOL_RATE_LIMIT_REQUESTS:-5}
+      WEBGUARD_WORKSPACE_SCAN_ROOT: ${WEBGUARD_WORKSPACE_SCAN_ROOT:-}
+      WEBGUARD_ZAP_API_URL: ${WEBGUARD_ZAP_API_URL:-}
+      WEBGUARD_ZAP_API_KEY: ${WEBGUARD_ZAP_API_KEY:-}
+      WEBGUARD_NUCLEI_PATH: ${WEBGUARD_NUCLEI_PATH:-nuclei}
+      WEBGUARD_K6_PATH: ${WEBGUARD_K6_PATH:-k6}
+      WEBGUARD_SCHEMATHESIS_PATH: ${WEBGUARD_SCHEMATHESIS_PATH:-schemathesis}
+      WEBGUARD_TRIVY_PATH: ${WEBGUARD_TRIVY_PATH:-trivy}
+      WEBGUARD_SEMGREP_PATH: ${WEBGUARD_SEMGREP_PATH:-semgrep}
+      WEBGUARD_GITLEAKS_PATH: ${WEBGUARD_GITLEAKS_PATH:-gitleaks}
+      WEBGUARD_TESTSSL_PATH: ${WEBGUARD_TESTSSL_PATH:-testssl.sh}
+      WEBGUARD_PLAYWRIGHT_ENABLED: ${WEBGUARD_PLAYWRIGHT_ENABLED:-false}
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - data
+      - tool_egress
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    environment:
+      WEBGUARD_DOMAIN: ${WEBGUARD_DOMAIN:?Set WEBGUARD_DOMAIN in .env.production}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      proxy:
+        ipv4_address: 172.30.80.12
+      edge: {}
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  # Database is not on the proxy network, so a compromised Caddy container
+  # cannot connect directly to PostgreSQL.
+  data:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.81.0/24
+  proxy:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.80.0/24
+  # Only the HTTPS edge has internet access for certificate issuance/renewal.
+  edge: {}
+  # The optional tool worker requires host/network egress filtering before active engines are enabled.
+  tool_egress: {}
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

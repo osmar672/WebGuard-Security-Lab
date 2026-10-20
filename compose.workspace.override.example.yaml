@@ -1,0 +1,12 @@
+# Optional: use only for admin-approved source code security scans.
+# Set WEBGUARD_WORKSPACE_HOST_PATH in .env.production to the exact host folder
+# that should be scanned. The mount is read-only and only visible to the worker.
+services:
+  api:
+    environment:
+      WEBGUARD_WORKSPACE_SCAN_ROOT: /scan-target
+  worker:
+    environment:
+      WEBGUARD_WORKSPACE_SCAN_ROOT: /scan-target
+    volumes:
+      - ${WEBGUARD_WORKSPACE_HOST_PATH:?Set WEBGUARD_WORKSPACE_HOST_PATH to an explicit source tree}:/scan-target:ro

@@ -1,0 +1,27 @@
+# Never include local configuration, credentials, or production secrets in build contexts.
+.env*
+**/.env*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Local runtimes and generated assets.
+.git
+.github
+**/node_modules
+**/.venv
+.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/*.py[cod]
+**/*.db
+**/*.db-shm
+**/*.db-wal
+frontend/dist
+frontend/.vite
+backups
+*.log
+.DS_Store
+Thumbs.db

@@ -1,44 +1,59 @@
-# Test results — WebGuard Phase 1 frontend
+# WebGuard Security Lab 0.9.0 — Tool Center validation results
 
-**Verification date:** 2026-10-19
+Date: 2026-10-19 (America/Costa_Rica). Commands below were run against the source tree used for this ZIP. This report deliberately separates successful checks from unavailable build infrastructure.
 
-## Environment limitation
+## Python test suites
 
-The packaging environment could not reach the npm registry. `npm ping --loglevel verbose` reported `EAI_AGAIN` while requesting `https://registry.npmjs.org/-/ping`. Two `npm install` attempts did not complete before the command timeout. No dependency packages or lockfile could be installed; TypeScript had created only incremental-cache files in a temporary `node_modules/.tmp` directory, which were removed before packaging. As a result, Vitest, ESLint, Vite, and the project-local type definitions are unavailable in this environment.
-
-## Commands executed
-
-| Command/check | Actual result | Notes |
-|---|---|---|
-| `npm ping --loglevel verbose` | **BLOCKED** | DNS/network error `EAI_AGAIN` for `registry.npmjs.org`. |
-| `npm install` | **BLOCKED** | Did not complete before the execution timeout due to registry unavailability. |
-| `npm install --ignore-scripts --no-audit --no-fund` | **BLOCKED** | Did not complete before the execution timeout; dependencies were not installed. |
-| `npm test` | **BLOCKED** (exit 127) | `sh: vitest: not found`. The component/navigation tests were added but could not execute. |
-| `npm run lint` | **BLOCKED** (exit 127) | `sh: eslint: not found`. |
-| `npm run typecheck` | **BLOCKED** (exit 1) | Missing `vite/client` and `vitest/globals` type definitions because dependencies were not installed. |
-| `npm run build` | **BLOCKED** (exit 1) | Same missing dependencies and Vite/plugin type declarations; production build did not run. |
-| `node --check eslint.config.js` | **PASS** | ESLint configuration JavaScript syntax is valid. |
-| TypeScript compiler API syntax parse | **PASS** | 18 `.ts`/`.tsx` files parsed without syntax diagnostics. This is a syntax-only check, **not** a type-check or build. |
-| JSON parse | **PASS** | `package.json`, `MODULE_MANIFEST.json`, `tsconfig.json`, `tsconfig.app.json`, and `tsconfig.node.json` parsed successfully. |
-| Static navigation/config check | **PASS** | Confirmed all 9 required navigation entries and 7 dashboard endpoint environment-variable names are present. |
-
-## Automated tests included but not executed here
-
-- Dashboard displays a truthful not-configured state without fabricated backend metrics.
-- Sidebar navigation opens Targets and scanner pages.
-- Pending scanner module is explicitly marked as coming soon and does not claim to run scans.
-- Dark/light theme toggle updates the selected theme.
-- Settings page displays endpoint placeholders and warns against frontend secrets.
-- Central HTTP client rejects an empty endpoint path and validates HTTP(S) API base URLs.
-
-## Next verification on a machine with npm registry access
+Backend/API, auth/RBAC, tool queue, worker heartbeat, tool parsers, catalog and report code:
 
 ```bash
-npm install
-npm run lint
-npm run typecheck
-npm test
-npm run build
+cd backend && python -m pytest -q
 ```
 
-Do not treat the frontend as fully integrated until these commands pass and the display decoders in `src/api/dashboardService.ts` have been aligned with the backend-approved API contract.
+**PASS — 53 passed in 7.67s.** The suite includes fail-closed behavior when the production worker heartbeat is absent/stale, cancellation/authorization boundaries, bounded tool command construction, CycloneDX command selection, configured Playwright browser-path preservation and adapter/report parsing.
+
+SSRF/scope security boundary:
+
+```bash
+cd security && PYTHONPATH=. python -m pytest -q tests
+```
+
+**PASS — 42 passed in 0.45s.** Tests use mocked DNS, unit fixtures and local isolated targets; they do not probe public systems.
+
+Total Python test count: **95 passed** across the two suites.
+
+## Static and configuration checks
+
+Executed successfully:
+
+```bash
+python -m compileall -q backend/app backend/tests security/webguard_scope security/tests
+python -m json.tool MODULE_MANIFEST.json >/dev/null
+python -m json.tool integration/PHASE3_SECURITY_BOUNDARY_MANIFEST.json >/dev/null
+bash -n setup.sh start.sh scripts/*.sh
+```
+
+The following YAML files also parsed successfully using `yaml.safe_load`: `compose.yaml`, `compose.workspace.override.example.yaml`, `.github/workflows/ci.yml`, `.github/dependabot.yml`.
+
+Frontend TypeScript/TSX syntax transpile using the globally installed TypeScript compiler: **30 files, zero syntax diagnostics**. This is a syntax-only check, not a strict project type-check.
+
+The production preflight was previously exercised using a synthetic production config and a stubbed `docker` command; that validates config parsing only, not an actual Compose build or deployment.
+
+## Checks blocked / not run
+
+- `npm ci --offline` failed with `ENOTCACHED`: the npm cache does not contain `yocto-queue@0.1.0`. The earlier online installation was also blocked by DNS (`EAI_AGAIN registry.npmjs.org`). Therefore ESLint, strict TypeScript project check, Vitest and the Vite production build were **not** run successfully for this build.
+- Ruff lint was not run because `ruff` is not installed in the environment (`No module named ruff`).
+- Docker Compose image builds and real service startup were not run because the Docker CLI is not installed in this environment.
+- No live Groq provider request was made; a usable provider key was not supplied.
+- No external target scans were performed. The safety flags are disabled by default.
+
+## Engine installation status
+
+- The optional worker image pins Playwright, Schemathesis and Semgrep Python packages and installs Chromium. It is a separate image from the API.
+- The engine adapters, availability detection, job queue, worker heartbeat, output parsers, normalized findings, cancellation checks, regression comparison and report exporters (JSON/HTML/PDF/SARIF/CycloneDX) are present in source and covered by backend tests where applicable.
+- Native CLI binaries for Nuclei, k6, Trivy, Gitleaks and testssl.sh are **not** baked into `backend/ToolWorker.Dockerfile` in this release. Those adapters must remain unavailable until these binaries are installed from official, pinned releases and their checksums are verified. ZAP must be separately deployed and configured with a non-public API key.
+- Docker Compose's `tool_egress` network is not a firewall. Do not enable external engines until network egress policy blocks loopback, private, link-local, reserved, multicast and cloud metadata destinations and that restriction has been tested against the worker and browser traffic.
+
+## Release assessment
+
+Version 0.9.0 integrates the Tool Center UI and backend workflow for bounded runs, worker readiness, authorization checks, persistence, normalized results, cancellation, exports and comparisons. It is an **internal beta**, not certified public production software. A release candidate still needs: live npm install + front-end gates, Docker build and staged Compose smoke test, actual native engine installation/verification, egress enforcement tests, backup/restore drill, monitoring/rate-limiting review, and external security testing.

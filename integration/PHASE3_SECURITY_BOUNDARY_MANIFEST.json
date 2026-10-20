@@ -1,0 +1,68 @@
+{
+  "module_id": "webguard.scope-auth-ssrf",
+  "phase": 3,
+  "version": "0.3.0",
+  "title": "Authorization, Scope, and SSRF Defenses",
+  "language": "python",
+  "python_requires": ">=3.11",
+  "entrypoint": "webguard_scope",
+  "dependencies": [
+    {
+      "name": "aiohttp",
+      "version": ">=3.10,<4.0",
+      "purpose": "HTTP client and custom scope-bound DNS resolver"
+    }
+  ],
+  "exports": [
+    "TargetAuthorization",
+    "SecuritySettings",
+    "JobLimits",
+    "AuditEvent",
+    "ScopeDenied",
+    "AuthorizationRegistry",
+    "ScopeBoundResolver",
+    "ScopeBoundHttpClient",
+    "validate_url",
+    "assert_ip_allowed"
+  ],
+  "capabilities": [
+    "explicit-target-authorization",
+    "host-port-path-allowlists",
+    "strict-url-validation",
+    "ipv4-ipv6-address-policy",
+    "dns-answer-validation-and-address-pinning",
+    "manual-redirect-revalidation",
+    "request-concurrency-time-response-and-redirect-limits",
+    "scope-change-denial-and-cancellation-audit-hooks",
+    "explicit-isolated-lab-mode"
+  ],
+  "default_security": {
+    "isolated_lab_enabled": false,
+    "allow_non_public_destinations": false,
+    "cloud_metadata_destinations_always_denied": true,
+    "redirect_following_automatic": false,
+    "environment_proxy_usage": false
+  },
+  "owned_paths": [
+    "security/pyproject.toml",
+    "security/requirements.txt",
+    "security/tests/",
+    "security/webguard_scope/__init__.py",
+    "security/webguard_scope/authorization.py",
+    "security/webguard_scope/client.py",
+    "security/webguard_scope/models.py",
+    "security/webguard_scope/resolver.py",
+    "security/webguard_scope/urls.py",
+    "docs/CONTRACT_ALIGNMENT.md",
+    "docs/SECURITY_BOUNDARIES.md",
+    "integration/PHASE3_SECURITY_BOUNDARY_MANIFEST.json",
+    "integration/ZIP_INTEGRATION_GUIDE.md"
+  ],
+  "integration_notes": [
+    "Use only grants loaded and authorized server-side; never accept a trusted grant from browser input.",
+    "Replace the in-memory AuthorizationRegistry with persistent transactional storage before production.",
+    "Playwright browser traffic, subresources, WebSockets and external engines need separate network-level egress enforcement.",
+    "Do not expose this component as a general-purpose proxy.",
+    "Este manifiesto describe el módulo de Fase 3 dentro del monorepositorio; el manifiesto raíz MODULE_MANIFEST.json describe el proyecto completo."
+  ]
+}

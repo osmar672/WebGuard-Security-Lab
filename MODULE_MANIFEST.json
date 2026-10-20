@@ -1,76 +1,154 @@
 {
-  "module_id": "webguard.frontend-dashboard",
-  "phase": 1,
-  "version": "0.1.0",
-  "title": "Frontend and Dashboard",
-  "language": "typescript",
-  "framework": "React + Vite",
-  "entrypoint": "src/main.tsx",
-  "routing": "React Router",
-  "theme_support": ["dark", "light"],
-  "dependencies": [
-    { "name": "react", "version": "^18.3.1" },
-    { "name": "react-dom", "version": "^18.3.1" },
-    { "name": "react-router-dom", "version": "^6.28.0" },
-    { "name": "lucide-react", "version": "^0.468.0" }
-  ],
-  "dashboard_data": [
-    "backend health",
-    "database health",
-    "target count",
-    "audit count",
-    "recent executions",
-    "engine status",
-    "recent activity"
-  ],
-  "safety": {
-    "does_not_start_scans": true,
-    "does_not_run_browser_bots": true,
-    "does_not_generate_load": true,
-    "no_fake_backend_data": true,
-    "browser_database_access": false,
-    "frontend_secrets_allowed": false
+  "name": "WebGuard Security Lab",
+  "version": "0.9.0",
+  "type": "organized-monorepo",
+  "release_status": "expanded-tool-center-integrated; external engines disabled by default; frontend build and Docker deployment require final environment validation",
+  "modules": {
+    "frontend": {
+      "path": "frontend/",
+      "stack": [
+        "React",
+        "TypeScript",
+        "Vite",
+        "React Router"
+      ],
+      "entry": "frontend/src/main.tsx",
+      "features": [
+        "login",
+        "role-aware UI",
+        "dashboard",
+        "targets",
+        "findings",
+        "history",
+        "settings",
+        "AI Copilot UI with local/remote mode status",
+        "tool catalog/status based on fresh worker heartbeat",
+        "Tool Center for queued scans and source-code security scans",
+        "target authorization and revocation controls",
+        "report export JSON/HTML/PDF/SARIF",
+        "regression comparison",
+        "workspace SBOM CycloneDX download"
+      ],
+      "start": "cd frontend && npm run dev",
+      "build": "cd frontend && npm run build"
+    },
+    "backend": {
+      "path": "backend/",
+      "stack": [
+        "FastAPI",
+        "Pydantic",
+        "SQLAlchemy",
+        "Alembic",
+        "SQLite development",
+        "PostgreSQL production"
+      ],
+      "entry": "backend/app/asgi.py",
+      "features": [
+        "Argon2 password hashing",
+        "short-lived JWT",
+        "admin/operator/viewer roles",
+        "target ownership",
+        "request IDs",
+        "audit events",
+        "optional Groq AI provider adapter",
+        "local rules fallback for process review, audit summaries, finding triage and remediation",
+        "AI endpoint authorization, rate limiting, secret redaction and usage audit events",
+        "database-backed ScanJob and WorkspaceScan worker",
+        "bounded allow-listed adapters for headers/DNS/TLS/auth surface, ZAP passive, Nuclei, Schemathesis, k6, Playwright/accessibility, Trivy, Semgrep, Gitleaks, testssl.sh and CycloneDX SBOM",
+        "normalized findings and cancellation/revocation checks",
+        "PDF/HTML/JSON/SARIF/CycloneDX report exports",
+        "audit-event history and run regression comparison"
+      ],
+      "start": "cd backend && ../.venv/bin/uvicorn app.asgi:app --host 127.0.0.1 --port 8000",
+      "migration": "cd backend && ../.venv/bin/alembic upgrade head",
+      "runtime_dependencies": "backend/requirements.txt",
+      "development_dependencies": "backend/requirements-dev.txt",
+      "create_admin": "cd backend && ../.venv/bin/python -m app.cli create-user --role admin"
+    },
+    "security_boundary": {
+      "path": "security/webguard_scope/",
+      "package": "webguard_scope",
+      "install": "python -m pip install -e ./security",
+      "test_path": "security/tests/",
+      "integration_status": "used by built-in network adapters; external CLI/browser adapters still require deployment-level egress filtering due to DNS check/use limitations"
+    },
+    "production_delivery": {
+      "paths": [
+        "compose.yaml",
+        "backend/ToolWorker.Dockerfile",
+        "deploy/",
+        "scripts/production-preflight.sh",
+        "scripts/backup-postgres.sh"
+      ],
+      "features": [
+        "Caddy HTTPS edge",
+        "private API/database network",
+        "restricted API container",
+        "explicit migration procedure",
+        "encrypted age backups",
+        "optional worker Compose profile with a dedicated Playwright/Chromium and Python-engine image",
+        "worker capability heartbeat; production refuses new jobs when worker heartbeat is stale",
+        "external engine safety flags and catalog readiness"
+      ]
+    },
+    "ai_copilot": {
+      "path": "backend/app/ai_service.py and frontend/src/pages/AIAssistantPage.tsx",
+      "endpoints": [
+        "GET /api/ai/status",
+        "POST /api/ai/assist"
+      ],
+      "provider": "Groq OpenAI-compatible chat-completions API configured server-side (default model: openai/gpt-oss-120b)",
+      "fallback": "Local deterministic rules when a model is not configured or temporarily unavailable",
+      "security": "Advisory only; no tools or scan execution; output and user inputs are treated as untrusted"
+    },
+    "tool_center": {
+      "path": "backend/app/tooling/ and frontend/src/pages/ToolCenterPage.tsx",
+      "features": [
+        "single tool catalog",
+        "persisted worker queue",
+        "bounded profiles",
+        "normalized finding persistence",
+        "authorization check before execution and while running",
+        "cancel queued/running jobs",
+        "workspace scans limited to server-configured root",
+        "JSON/HTML/PDF/SARIF exports",
+        "CycloneDX SBOM export",
+        "regression comparison"
+      ],
+      "disabled_by_default": true,
+      "critical_gate": "external tools require tested deployment egress filtering; Compose network alone is not an egress firewall"
+    }
   },
-  "owned_paths": [
-    ".env.example",
-    "README.md",
-    "MODULE_MANIFEST.json",
-    "TEST_RESULTS.md",
-    "docs/CONTRACT_BLOCKERS.md",
-    "index.html",
-    "package.json",
-    "tsconfig.json",
-    "tsconfig.app.json",
-    "tsconfig.node.json",
-    "vite.config.ts",
-    "vitest.config.ts",
-    "eslint.config.js",
-    "src/App.tsx",
-    "src/main.tsx",
-    "src/styles.css",
-    "src/api/config.ts",
-    "src/api/httpClient.ts",
-    "src/api/dashboardService.ts",
-    "src/components/AppShell.tsx",
-    "src/components/Sidebar.tsx",
-    "src/components/navigation.ts",
-    "src/components/MetricCard.tsx",
-    "src/components/StatusPill.tsx",
-    "src/components/EmptyState.tsx",
-    "src/components/ResourceState.tsx",
-    "src/pages/DashboardPage.tsx",
-    "src/pages/ModulePage.tsx",
-    "src/pages/SettingsPage.tsx",
-    "src/test/setup.ts",
-    "src/test/App.test.tsx",
-    "src/test/httpClient.test.ts"
+  "project_commands": {
+    "setup_local": "./setup.sh",
+    "start_local": "./start.sh",
+    "test_all": "./scripts/test.sh",
+    "production_preflight": "./scripts/production-preflight.sh",
+    "tool_checks": "./scripts/check-tool-engines.sh",
+    "optional_python_engines": "./scripts/install-python-engines.sh"
+  },
+  "contracts": [
+    "docs/ARCHITECTURE.md",
+    "docs/API_CONTRACT.md",
+    "docs/DATA_MODEL.md",
+    "docs/SECURITY_BOUNDARIES.md",
+    "docs/TOOL_CENTER.md"
   ],
-  "contract_blocker": "Phase 0 requirements brief was supplied without approved REST endpoint paths or backend request/response schemas. Endpoint variables are blank intentionally; frontend display DTOs are placeholders.",
-  "integration_notes": [
-    "Backend must provide approved API_CONTRACT.md before endpoint paths and response decoders are enabled.",
-    "Configure VITE_API_BASE_URL and approved relative paths in .env.local.",
-    "Align src/api/dashboardService.ts decoders to official backend schemas before connection.",
-    "VITE_* variables are public; never place secrets in frontend environment variables.",
-    "All scope authorization and SSRF prevention remain server-side and must use Phase 3 security boundary."
+  "operational_docs": [
+    "docs/PRODUCTION_DEPLOYMENT.md",
+    "docs/SECURITY_REVIEW.md",
+    "docs/AI_COPILOT.md"
+  ],
+  "notes": [
+    "Never commit secrets, .env.production, databases, node_modules, virtual environments, build caches, or backup files.",
+    "All network assessments require explicit authorization for targets and paths.",
+    "External CLI/browser engines remain disabled by default. Missing dependencies must remain unavailable in the catalog.",
+    "A config flag is not a firewall: enforce and test worker egress filtering before enabling external engines.",
+    "Queue coordination and rate limits are single-worker/process-local and must be upgraded before horizontal scale.",
+    "Accessibility findings are heuristics, not WCAG certification; reported regression resolution means no longer observed, not proven fixed.",
+    "The Groq AI Copilot remains advisory-only and cannot launch scans or modify scope.",
+    "Tool Center release 0.9.0: database-persisted worker heartbeat, fail-closed production behavior when worker is stale/offline, bounded adapters and export/regression features.",
+    "The dedicated worker image currently bundles pinned Python integrations and Chromium; native CLI binaries (Nuclei, k6, Trivy, Gitleaks, testssl.sh) are not bundled and remain unavailable unless added from verified vendor releases.",
+    "Docker Compose networks do not enforce destination-aware egress policy; external engines must remain disabled until independently enforced and tested network filtering is in place."
   ]
 }
